@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiService } from '../../services/api';
 import { SubscriptionSuccessResponse } from '../../types';
 
-export default function SubscriptionSuccessPage() {
+function SubscriptionSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -386,5 +386,26 @@ export default function SubscriptionSuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function SubscriptionSuccessFallback() {
+  return (
+    <div className="container mt-5">
+      <div className="text-center">
+        <div className="spinner-border" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="mt-3">Loading subscription details...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function SubscriptionSuccessPage() {
+  return (
+    <Suspense fallback={<SubscriptionSuccessFallback />}>
+      <SubscriptionSuccessContent />
+    </Suspense>
   );
 } 

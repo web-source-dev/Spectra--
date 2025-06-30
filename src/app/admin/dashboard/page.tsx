@@ -1,22 +1,36 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiService } from '../../../services/api';
 import { AdminDashboardData, AdminSubmission, AdminOrder, AdminSubscription } from '../../../types';
+
+type ModalItem = (AdminSubmission | AdminOrder | AdminSubscription) & { type: 'submission' | 'order' | 'subscription' };
 
 export default function AdminDashboard() {
   const [data, setData] = useState<AdminDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'submissions' | 'orders' | 'subscriptions'>('submissions');
+  const [selectedItem, setSelectedItem] = useState<ModalItem | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState<'view' | 'delete'>('view');
   const router = useRouter();
 
-  useEffect(() => {
-    checkAuthAndLoadData();
-  }, []);
+  // Custom styles for better button appearance
+  const buttonStyles = {
+    actionButton: {
+      minWidth: '32px',
+      padding: '4px 8px',
+      border: '1px solid',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      margin: '0 1px'
+    }
+  };
 
-  const checkAuthAndLoadData = async () => {
+  const checkAuthAndLoadData = useCallback(async () => {
     const authToken = localStorage.getItem('spectra_admin_auth');
     
     if (!authToken) {
@@ -38,12 +52,38 @@ export default function AdminDashboard() {
       localStorage.removeItem('spectra_admin_auth');
       router.push('/admin/login');
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    checkAuthAndLoadData();
+  }, [checkAuthAndLoadData]);
+
+  // Add keyboard support for modal
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showModal) {
+        closeModal();
+      }
+    };
+
+    if (showModal) {
+      document.addEventListener('keydown', handleKeyDown);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [showModal]);
 
   const loadDashboardData = async (token: string) => {
     try {
       setLoading(true);
+      console.log('Loading admin dashboard data with token:', token);
       const dashboardData = await apiService.getAdminDashboardData(token);
+      console.log('Received dashboard data:', dashboardData);
       setData(dashboardData);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -81,6 +121,17 @@ export default function AdminDashboard() {
       default:
         return 'secondary';
     }
+  };
+
+  const handleView = (item: AdminSubmission | AdminOrder | AdminSubscription, type: 'submission' | 'order' | 'subscription') => {
+    setSelectedItem({ ...item, type } as ModalItem);
+    setModalType('view');
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedItem(null);
   };
 
   if (loading) {
@@ -163,7 +214,7 @@ export default function AdminDashboard() {
                   <i className="bi bi-file-earmark-text me-2"></i>
                   Total Submissions
                 </h5>
-                <h2 className="card-text">{data.submissions.length}</h2>
+                <h2 className="card-text">{data?.submissions?.length || 0}</h2>
               </div>
             </div>
           </div>
@@ -174,7 +225,7 @@ export default function AdminDashboard() {
                   <i className="bi bi-cart-check me-2"></i>
                   Total Orders
                 </h5>
-                <h2 className="card-text">{data.orders.length}</h2>
+                <h2 className="card-text">{data?.orders?.length || 0}</h2>
               </div>
             </div>
           </div>
@@ -186,7 +237,7 @@ export default function AdminDashboard() {
                   Active Subscriptions
                 </h5>
                 <h2 className="card-text">
-                  {data.subscriptions.filter(sub => sub.status === 'active').length}
+                  {data?.subscriptions?.filter(sub => sub.status === 'active').length || 0}
                 </h2>
               </div>
             </div>
@@ -201,7 +252,7 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('submissions')}
             >
               <i className="bi bi-file-earmark-text me-2"></i>
-              Submissions ({data.submissions.length})
+              Submissions ({data?.submissions?.length || 0})
             </button>
           </li>
           <li className="nav-item">
@@ -210,7 +261,7 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('orders')}
             >
               <i className="bi bi-cart-check me-2"></i>
-              Orders ({data.orders.length})
+              Orders ({data?.orders?.length || 0})
             </button>
           </li>
           <li className="nav-item">
@@ -219,7 +270,7 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('subscriptions')}
             >
               <i className="bi bi-credit-card me-2"></i>
-              Subscriptions ({data.subscriptions.length})
+              Subscriptions ({data?.subscriptions?.length || 0})
             </button>
           </li>
         </ul>
@@ -246,10 +297,11 @@ export default function AdminDashboard() {
                           <th>Grams</th>
                           <th>Action</th>
                           <th>Date</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {data.submissions.map((submission: AdminSubmission) => (
+                        {data?.submissions?.map((submission: AdminSubmission) => (
                           <tr key={submission._id}>
                             <td>{submission.id}</td>
                             <td>{submission.name}</td>
@@ -263,8 +315,25 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td>{formatDate(submission.timestamp)}</td>
+                            <td>
+                              <div className="btn-group" role="group" style={{ gap: '2px' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-primary"
+                                  onClick={() => handleView(submission, 'submission')}
+                                  title="View Details"
+                                  style={buttonStyles.actionButton}
+                                >
+                                  <i className="bi bi-eye"></i>
+                                </button>
+                              </div>
+                            </td>
                           </tr>
-                        ))}
+                        )) || (
+                          <tr>
+                            <td colSpan={9} className="text-center text-muted">No submissions found</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -293,10 +362,11 @@ export default function AdminDashboard() {
                           <th>Status</th>
                           <th>Payment</th>
                           <th>Date</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {data.orders.map((order: AdminOrder) => (
+                        {data?.orders?.map((order: AdminOrder) => (
                           <tr key={order._id}>
                             <td>{order.orderNumber}</td>
                             <td>{order.name}</td>
@@ -314,8 +384,25 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td>{formatDate(order.createdAt)}</td>
+                            <td>
+                              <div className="btn-group" role="group" style={{ gap: '2px' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-primary"
+                                  onClick={() => handleView(order, 'order')}
+                                  title="View Details"
+                                  style={buttonStyles.actionButton}
+                                >
+                                  <i className="bi bi-eye"></i>
+                                </button>
+                              </div>
+                            </td>
                           </tr>
-                        ))}
+                        )) || (
+                          <tr>
+                            <td colSpan={9} className="text-center text-muted">No orders found</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -343,10 +430,11 @@ export default function AdminDashboard() {
                           <th>Status</th>
                           <th>Next Payment</th>
                           <th>Created</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {data.subscriptions.map((subscription: AdminSubscription) => (
+                        {data?.subscriptions?.map((subscription: AdminSubscription) => (
                           <tr key={subscription._id}>
                             <td>{subscription.product?.name || 'N/A'}</td>
                             <td>{subscription.email}</td>
@@ -363,8 +451,25 @@ export default function AdminDashboard() {
                             </td>
                             <td>{formatDate(subscription.currentPeriodEnd)}</td>
                             <td>{formatDate(subscription.createdAt)}</td>
+                            <td>
+                              <div className="btn-group" role="group" style={{ gap: '2px' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-primary"
+                                  onClick={() => handleView(subscription, 'subscription')}
+                                  title="View Details"
+                                  style={buttonStyles.actionButton}
+                                >
+                                  <i className="bi bi-eye"></i>
+                                </button>
+                              </div>
+                            </td>
                           </tr>
-                        ))}
+                        )) || (
+                          <tr>
+                            <td colSpan={8} className="text-center text-muted">No subscriptions found</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -374,6 +479,88 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      {/* Modal for View/Delete */}
+      {showModal && selectedItem && (
+        <>
+          <div 
+            className="modal fade show" 
+            style={{ display: 'block', zIndex: 1050 }} 
+            tabIndex={-1}
+            onClick={closeModal}
+          >
+            <div 
+              className="modal-dialog modal-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    {modalType === 'view' ? 'View Details' : 'Confirm Delete'}
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={closeModal}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  {modalType === 'view' ? (
+                    <div>
+                      <h6 className="text-capitalize mb-3">{selectedItem.type} Details</h6>
+                      <div className="row">
+                        {Object.entries(selectedItem).map(([key, value]) => {
+                          if (key === '_id' || key === 'type') return null;
+                          if (typeof value === 'object' && value !== null) {
+                            return (
+                              <div key={key} className="col-md-6 mb-2">
+                                <strong>{key}:</strong>
+                                <pre className="small bg-light p-2 mt-1 rounded">
+                                  {JSON.stringify(value, null, 2)}
+                                </pre>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div key={key} className="col-md-6 mb-2">
+                              <strong>{key}:</strong> {String(value)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="modal-footer">
+                  {modalType === 'delete' && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={closeModal}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                  {modalType === 'view' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={closeModal}
+                    >
+                      Close
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div 
+            style={{ zIndex: 1040, backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          ></div>
+        </>
+      )}
     </div>
   );
 } 

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiService } from '../../services/api';
 import { MySubscriptionsData, CancelSubscriptionResponse } from '../../types';
 
-export default function MySubscriptionsPage() {
+function MySubscriptionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -332,5 +332,26 @@ export default function MySubscriptionsPage() {
         </>
       )}
     </div>
+  );
+}
+
+function MySubscriptionsFallback() {
+  return (
+    <div className="container mt-5">
+      <div className="text-center">
+        <div className="spinner-border" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="mt-3">Loading your subscriptions...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function MySubscriptionsPage() {
+  return (
+    <Suspense fallback={<MySubscriptionsFallback />}>
+      <MySubscriptionsContent />
+    </Suspense>
   );
 } 

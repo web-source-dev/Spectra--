@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function ErrorPage() {
+function ErrorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -179,5 +179,26 @@ export default function ErrorPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ErrorFallback() {
+  return (
+    <div className="container mt-5">
+      <div className="text-center">
+        <div className="spinner-border" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="mt-3">Loading error details...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function ErrorPage() {
+  return (
+    <Suspense fallback={<ErrorFallback />}>
+      <ErrorContent />
+    </Suspense>
   );
 } 

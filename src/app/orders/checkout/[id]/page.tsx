@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import { apiService } from '../../../../services/api';
 import { CheckoutSubmission, CheckoutFormData, CheckoutResponse } from '../../../../types';
 
-export default function CheckoutPage({ params }: { params: { id: string } }) {
+export default function CheckoutPage({ params }: { params: Promise<{ id: string }> }) {
   const [submission, setSubmission] = useState<CheckoutSubmission | null>(null);
   const [formData, setFormData] = useState<CheckoutFormData>({
-    submissionId: Number(params.id),
+    submissionId: 0,
     name: '',
     email: '',
     phone: '',
@@ -23,17 +23,30 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    loadSubmission();
-    // eslint-disable-next-line
-  }, [params.id]);
+    const resolveParams = async () => {
+      const resolved = await params;
+      setResolvedParams(resolved);
+      setFormData(prev => ({ ...prev, submissionId: Number(resolved.id) }));
+    };
+    resolveParams();
+  }, [params]);
+
+  useEffect(() => {
+    if (resolvedParams) {
+      loadSubmission();
+    }
+  }, [resolvedParams]);
 
   const loadSubmission = async () => {
+    if (!resolvedParams) return;
+    
     try {
       setLoading(true);
-      const response = await apiService.getCheckoutSubmission(Number(params.id));
+      const response = await apiService.getCheckoutSubmission(Number(resolvedParams.id));
       
       if (response.success) {
         if (response.already_paid && response.redirectUrl) {

@@ -12,6 +12,9 @@ import {
   AdminTokenVerification,
   AdminSessionCheck,
   AdminDashboardData,
+  AdminSubmission,
+  AdminOrder,
+  AdminSubscription,
   CheckoutFormData,
   CheckoutResponse,
   ClaimPolicyData,
@@ -62,7 +65,9 @@ class ApiService {
       console.log(`Response status: ${response.status}`);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`HTTP error! status: ${response.status}, body:`, errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
 
       const data = await response.json();
@@ -232,11 +237,19 @@ class ApiService {
 
   // Get admin dashboard data
   async getAdminDashboardData(token: string): Promise<AdminDashboardData> {
-    return this.request('/admin/dashboard', {
+    const response = await this.request<{ success: boolean; submissions: AdminSubmission[]; orders: AdminOrder[]; subscriptions: AdminSubscription[]; ordersMap: Record<string, AdminOrder> }>('/admin/dashboard', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
+    
+    // Return the data without the success wrapper
+    return {
+      submissions: response.submissions || [],
+      orders: response.orders || [],
+      subscriptions: response.subscriptions || [],
+      ordersMap: response.ordersMap || {}
+    };
   }
 
   // Get checkout submission

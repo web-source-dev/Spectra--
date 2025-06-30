@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { apiService } from '../../services/api';
 import Link from 'next/link';
 
-export default function PaymentCancel() {
+function PaymentCancelContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get('order');
   
@@ -178,5 +178,26 @@ export default function PaymentCancel() {
         </div>
       </div>
     </div>
+  );
+}
+
+function PaymentCancelFallback() {
+  return (
+    <div className="container mt-5">
+      <div className="text-center">
+        <div className="spinner-border" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="mt-3">Loading payment cancellation details...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function PaymentCancel() {
+  return (
+    <Suspense fallback={<PaymentCancelFallback />}>
+      <PaymentCancelContent />
+    </Suspense>
   );
 } 
