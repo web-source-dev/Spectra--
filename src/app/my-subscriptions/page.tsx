@@ -278,23 +278,32 @@ function MySubscriptionsContent() {
                           )}
 
                           {subscription.status === 'active' && (
-                            <button 
-                              className="btn btn-danger btn-sm"
-                              onClick={() => handleCancelSubscription(subscription.stripeSubscriptionId)}
-                              disabled={cancellingSubscription === subscription.stripeSubscriptionId}
-                            >
-                              {cancellingSubscription === subscription.stripeSubscriptionId ? (
-                                <>
-                                  <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                                  Cancelling...
-                                </>
-                              ) : (
-                                <>
-                                  <i className="bi bi-x-circle me-1"></i>
-                                  Cancel Subscription
-                                </>
-                              )}
-                            </button>
+                            <>
+                              <button 
+                                className="btn btn-success btn-sm"
+                                onClick={() => router.push(`/claim-policy/${encodeURIComponent(subscription.email)}/${encodeURIComponent(subscription.sku)}`)}
+                              >
+                                <i className="bi bi-file-earmark-text me-1"></i>
+                                Claim Your Policy
+                              </button>
+                              <button 
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleCancelSubscription(subscription.stripeSubscriptionId)}
+                                disabled={cancellingSubscription === subscription.stripeSubscriptionId}
+                              >
+                                {cancellingSubscription === subscription.stripeSubscriptionId ? (
+                                  <>
+                                    <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Cancelling...
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="bi bi-x-circle me-1"></i>
+                                    Cancel Subscription
+                                  </>
+                                )}
+                              </button>
+                            </>
                           )}
 
                           <button 
@@ -315,7 +324,7 @@ function MySubscriptionsContent() {
                 <div className="alert alert-info">
                   <h5><i className="bi bi-info-circle-fill me-2"></i>Need Help?</h5>
                   <p className="mb-2">If you need to make changes to your subscription or have questions, please contact our support team:</p>
-                  <div className="d-flex justify-content-center gap-3">
+                  <div className="d-flex justify-content-center gap-3 mb-3">
                     <a href="mailto:support@spectrametal.com" className="text-decoration-none">
                       <i className="bi bi-envelope-fill me-1"></i>
                       support@spectrametal.com
@@ -323,6 +332,12 @@ function MySubscriptionsContent() {
                     <a href="tel:+18005551234" className="text-decoration-none">
                       <i className="bi bi-telephone-fill me-1"></i>
                       1-800-555-1234
+                    </a>
+                  </div>
+                  <div className="d-flex justify-content-center gap-2">
+                    <a href="/my-claims" className="btn btn-outline-primary btn-sm">
+                      <i className="bi bi-file-earmark-text me-1"></i>
+                      View My Claims
                     </a>
                   </div>
                 </div>

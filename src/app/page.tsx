@@ -566,6 +566,23 @@ export default function Home() {
         />
       </div>
 
+      {/* Navigation */}
+      <nav className="navbar navbar-expand-lg navbar-light bg-light mb-4">
+        <div className="container-fluid">
+          <span className="navbar-brand">Spectra Gems & Minerals</span>
+          <div className="navbar-nav ms-auto">
+            <a className="nav-link" href="/my-subscriptions">
+              <i className="bi bi-shield-check me-1"></i>
+              My Subscriptions
+            </a>
+            <a className="nav-link" href="/my-claims">
+              <i className="bi bi-file-earmark-text me-1"></i>
+              My Claims
+            </a>
+          </div>
+        </div>
+      </nav>
+
       {error && <div id="errorMessage" style={{ color: 'red', fontSize: '1rem', textAlign: 'center', marginTop: '20px' }}>{error}</div>}
 
       {/* Price Cards */}

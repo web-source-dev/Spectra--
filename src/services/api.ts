@@ -15,6 +15,7 @@ import {
   AdminSubmission,
   AdminOrder,
   AdminSubscription,
+  AdminClaim,
   CheckoutFormData,
   CheckoutResponse,
   ClaimPolicyData,
@@ -30,7 +31,10 @@ import {
   PaymentProcessingResponse,
   SellConfirmationResponse,
   SubscriptionSuccessResponse,
-  Order
+  Order,
+  CreateClaimRequest,
+  CreateClaimResponse,
+  GetClaimsResponse
 } from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://spectra-backend-oib7.onrender.com';
@@ -237,10 +241,17 @@ class ApiService {
 
   // Get admin dashboard data
   async getAdminDashboardData(token: string): Promise<AdminDashboardData> {
-    const response = await this.request<{ success: boolean; submissions: AdminSubmission[]; orders: AdminOrder[]; subscriptions: AdminSubscription[]; ordersMap: Record<string, AdminOrder> }>('/admin/dashboard', {
+    const response = await this.request<{ success: boolean; submissions: AdminSubmission[]; orders: AdminOrder[]; subscriptions: AdminSubscription[]; claims: AdminClaim[]; ordersMap: Record<string, AdminOrder> }>('/admin/dashboard', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
+    });
+    
+    console.log('Admin dashboard response:', {
+      submissions: response.submissions?.length || 0,
+      orders: response.orders?.length || 0,
+      subscriptions: response.subscriptions?.length || 0,
+      claims: response.claims?.length || 0
     });
     
     // Return the data without the success wrapper
@@ -248,6 +259,7 @@ class ApiService {
       submissions: response.submissions || [],
       orders: response.orders || [],
       subscriptions: response.subscriptions || [],
+      claims: response.claims || [],
       ordersMap: response.ordersMap || {}
     };
   }
@@ -311,6 +323,50 @@ class ApiService {
   // Subscription success
   async getSubscriptionSuccess(subscriptionId: string): Promise<SubscriptionSuccessResponse> {
     return this.request(`/subscription-success?subscription=${subscriptionId}`);
+  }
+
+  // Create claim
+  async createClaim(claimData: CreateClaimRequest): Promise<CreateClaimResponse> {
+    const formData = new FormData();
+    formData.append('subscriptionId', claimData.subscriptionId);
+    formData.append('productDescription', claimData.productDescription);
+    formData.append('claimType', claimData.claimType);
+    if (claimData.notes) {
+      formData.append('notes', claimData.notes);
+    }
+    
+    // Append images
+    claimData.images.forEach((image) => {
+      formData.append(`images`, image);
+    });
+
+    const url = `${this.baseUrl}/claims/create`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Claim creation failed:', error);
+      throw error;
+    }
+  }
+
+  // Get claims for a user
+  async getClaims(email?: string): Promise<GetClaimsResponse> {
+    const params = email ? `?email=${encodeURIComponent(email)}` : '';
+    console.log('Fetching claims for email:', email);
+    const response = await this.request<GetClaimsResponse>(`/claims${params}`);
+    console.log('Claims response:', response);
+    return response;
   }
 }
 

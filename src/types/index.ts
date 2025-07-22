@@ -155,6 +155,7 @@ export interface AdminDashboardData {
   submissions: AdminSubmission[];
   orders: AdminOrder[];
   subscriptions: AdminSubscription[];
+  claims: AdminClaim[];
   ordersMap: Record<string, AdminOrder>;
 }
 
@@ -223,6 +224,21 @@ export interface AdminSubscription {
     calculatedPrice: string;
     imagePath?: string;
   };
+}
+
+export interface AdminClaim {
+  _id: string;
+  subscriptionId: string;
+  customerId: string;
+  email: string;
+  sku: string;
+  productDescription: string;
+  images: ClaimImage[];
+  claimType: 'damage' | 'loss' | 'theft' | 'maintenance' | 'other';
+  notes?: string;
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Checkout Types
@@ -416,4 +432,47 @@ export interface PaymentProcessingResponse {
   error?: {
     message: string;
   };
+}
+
+// Claim Types
+export interface Claim {
+  _id: string;
+  subscriptionId: string;
+  customerId: string;
+  email: string;
+  sku: string;
+  productDescription: string;
+  images: ClaimImage[];
+  claimType: 'damage' | 'loss' | 'theft' | 'maintenance' | 'other';
+  notes?: string;
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClaimImage {
+  url: string;
+  filename: string;
+  uploadedAt: string;
+}
+
+export interface CreateClaimRequest {
+  subscriptionId: string;
+  productDescription: string;
+  claimType: 'damage' | 'loss' | 'theft' | 'maintenance' | 'other';
+  notes?: string;
+  images: File[];
+}
+
+export interface CreateClaimResponse {
+  success: boolean;
+  claim?: Claim;
+  message?: string;
+  error?: string;
+}
+
+export interface GetClaimsResponse {
+  success: boolean;
+  claims: Claim[];
+  message?: string;
 } 

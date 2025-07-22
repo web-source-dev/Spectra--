@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { loadStripe, StripeElements } from '@stripe/stripe-js';
 import { apiService } from '../../../../services/api';
-import { ClaimPolicyData, CreateSubscriptionResponse } from '../../../../types/index';
+import { ClaimPolicyData, CreateSubscriptionResponse, CreateClaimRequest } from '../../../../types/index';
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_publishable_key');
+
+type ClaimType = 'damage' | 'loss' | 'theft' | 'maintenance' | 'other';
 
 export default function ClaimPolicyPage() {
   const params = useParams();
@@ -26,6 +28,18 @@ export default function ClaimPolicyPage() {
   const [elements, setElements] = useState<unknown>(null);
   const [paymentMessage, setPaymentMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentElementReady, setPaymentElementReady] = useState(false);
+  
+  // Claim modal state
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claimForm, setClaimForm] = useState({
+    productDescription: '',
+    claimType: 'damage' as 'damage' | 'loss' | 'theft' | 'maintenance' | 'other',
+    notes: ''
+  });
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
+  const [claimMessage, setClaimMessage] = useState('');
 
   useEffect(() => {
     loadClaimPolicyData();
@@ -50,6 +64,7 @@ export default function ClaimPolicyPage() {
   const handlePlanSelection = async (plan: 'monthly' | 'yearly') => {
     try {
       setSelectedPlan(plan);
+      setPaymentElementReady(false); // Reset ready state
       const price = plan === 'monthly' ? data!.monthlyPrice : data!.yearlyPrice;
       setSelectedPrice(price);
 
@@ -94,12 +109,16 @@ export default function ClaimPolicyPage() {
 
       setElements(newElements);
       setPaymentElement(newPaymentElement);
+      setPaymentElementReady(false); // Not ready until mounted
 
       // Mount the payment element
       setTimeout(() => {
         const container = document.getElementById('payment-element');
         if (container) {
           newPaymentElement.mount('#payment-element');
+          newPaymentElement.on('ready', () => {
+            setPaymentElementReady(true);
+          });
         }
       }, 100);
 
@@ -112,8 +131,8 @@ export default function ClaimPolicyPage() {
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!elements || !paymentElement || !clientSecret) {
-      setPaymentMessage('Payment elements not initialized. Please select a plan first.');
+    if (!elements || !paymentElement || !clientSecret || !paymentElementReady) {
+      setPaymentMessage('Payment elements not initialized or not ready. Please select a plan and wait for the payment form to load.');
       return;
     }
 
@@ -146,6 +165,7 @@ export default function ClaimPolicyPage() {
 
   const handleIncompletePayment = async () => {
     try {
+      setPaymentElementReady(false); // Reset ready state
       const response = await apiService.retrieveSubscriptionPayment(data!.existingSubscription!.stripeSubscriptionId);
       
       const stripe = await stripePromise;
@@ -172,11 +192,15 @@ export default function ClaimPolicyPage() {
       const newPaymentElement = newElements.create('payment');
       setElements(newElements);
       setPaymentElement(newPaymentElement);
+      setPaymentElementReady(false); // Not ready until mounted
 
       setTimeout(() => {
         const container = document.getElementById('incomplete-payment-element');
         if (container) {
           newPaymentElement.mount('#incomplete-payment-element');
+          newPaymentElement.on('ready', () => {
+            setPaymentElementReady(true);
+          });
         }
       }, 100);
 
@@ -189,8 +213,8 @@ export default function ClaimPolicyPage() {
   const handleIncompletePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!elements || !paymentElement) {
-      setPaymentMessage('Payment form not initialized');
+    if (!elements || !paymentElement || !paymentElementReady) {
+      setPaymentMessage('Payment form not initialized or not ready. Please wait for the payment form to load.');
       return;
     }
 
@@ -234,6 +258,68 @@ export default function ClaimPolicyPage() {
     }
   };
 
+  const handleClaimButtonClick = () => {
+    setShowClaimModal(true);
+    setClaimMessage('');
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedImages(prev => [...prev, ...files]);
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleClaimSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!data?.existingSubscription?._id) {
+      setClaimMessage('No active subscription found');
+      return;
+    }
+
+    if (!claimForm.productDescription.trim()) {
+      setClaimMessage('Please provide a description of the product you want to claim');
+      return;
+    }
+
+    setIsSubmittingClaim(true);
+    setClaimMessage('Submitting claim...');
+
+    try {
+      const claimData: CreateClaimRequest = {
+        subscriptionId: data.existingSubscription._id,
+        productDescription: claimForm.productDescription,
+        claimType: claimForm.claimType,
+        notes: claimForm.notes || undefined,
+        images: selectedImages
+      };
+
+      const response = await apiService.createClaim(claimData);
+
+      if (response.success) {
+        setClaimMessage('Claim submitted successfully! We will review your claim and contact you soon.');
+        setShowClaimModal(false);
+        // Reset form
+        setClaimForm({
+          productDescription: '',
+          claimType: 'damage',
+          notes: ''
+        });
+        setSelectedImages([]);
+      } else {
+        setClaimMessage(response.message || 'Failed to submit claim');
+      }
+    } catch (err: unknown) {
+      console.error('Error submitting claim:', err);
+      setClaimMessage(err instanceof Error ? err.message : 'Failed to submit claim');
+    } finally {
+      setIsSubmittingClaim(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mt-5">
@@ -272,6 +358,14 @@ export default function ClaimPolicyPage() {
         />
         <h1 className="mt-4">Metal Protection Plan</h1>
         <p className="lead">Protect your valuable metal investment with our comprehensive coverage plans</p>
+        <a
+          href="/claim-policy/policy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-link mt-2"
+        >
+          View Policy Terms
+        </a>
       </div>
 
       {/* Product Details */}
@@ -328,6 +422,19 @@ export default function ClaimPolicyPage() {
                   disabled={isSubmitting}
                 >
                   <i className="bi bi-credit-card me-2"></i> Complete Payment
+                </button>
+              </div>
+            )}
+
+            {data.existingSubscription.status === 'active' && (
+              <div className="alert alert-success">
+                <h5><i className="bi bi-shield-check me-2"></i> Your protection plan is active!</h5>
+                <p className="mb-3">You can now file a claim for your protected product. Click the button below to start the claim process.</p>
+                <button 
+                  className="btn btn-success" 
+                  onClick={handleClaimButtonClick}
+                >
+                  <i className="bi bi-file-earmark-text me-2"></i> Claim Your Policy
                 </button>
               </div>
             )}
@@ -395,7 +502,7 @@ export default function ClaimPolicyPage() {
               <button 
                 type="submit" 
                 className="btn btn-primary w-100" 
-                disabled={isSubmitting || !paymentElement}
+                disabled={isSubmitting || !paymentElement || !paymentElementReady}
               >
                 {isSubmitting ? (
                   <>
@@ -428,7 +535,7 @@ export default function ClaimPolicyPage() {
             <button 
               className="btn btn-primary" 
               onClick={handleIncompletePaymentSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !paymentElementReady}
             >
               {isSubmitting ? (
                 <>
@@ -451,6 +558,160 @@ export default function ClaimPolicyPage() {
           <i className="bi bi-arrow-left"></i> Back to Metal Price Tracker
         </button>
       </div>
+
+      {/* Claim Modal */}
+      {showClaimModal && (
+        <div className="modal fade show" style={{ display: 'block' }} tabIndex={-1}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-file-earmark-text me-2"></i>
+                  File a Claim
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowClaimModal(false)}
+                  disabled={isSubmittingClaim}
+                ></button>
+              </div>
+              <form onSubmit={handleClaimSubmit}>
+                <div className="modal-body">
+                  <div className="alert alert-info">
+                    <h6><i className="bi bi-info-circle me-2"></i>Claim Information</h6>
+                    <p className="mb-0">Please provide detailed information about the product you want to claim. Include any relevant details about damage, loss, or maintenance needs.</p>
+                  </div>
+
+                  <div className="mb-3">
+                    <label htmlFor="claimType" className="form-label">Claim Type *</label>
+                    <select 
+                      id="claimType"
+                      className="form-select"
+                      value={claimForm.claimType}
+                      onChange={(e) => setClaimForm(prev => ({ ...prev, claimType: e.target.value as ClaimType }))}
+                      required
+                    >
+                      <option value="damage">Damage</option>
+                      <option value="loss">Loss</option>
+                      <option value="theft">Theft</option>
+                      <option value="maintenance">Maintenance</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label htmlFor="productDescription" className="form-label">Product Description *</label>
+                    <textarea 
+                      id="productDescription"
+                      className="form-control"
+                      rows={4}
+                      placeholder="Please describe the product you want to claim, including any details about damage, loss, or maintenance needs..."
+                      value={claimForm.productDescription}
+                      onChange={(e) => setClaimForm(prev => ({ ...prev, productDescription: e.target.value }))}
+                      required
+                    ></textarea>
+                  </div>
+
+
+
+                  <div className="mb-3">
+                    <label htmlFor="notes" className="form-label">Additional Notes (Optional)</label>
+                    <textarea 
+                      id="notes"
+                      className="form-control"
+                      rows={3}
+                      placeholder="Any additional information that might help with your claim..."
+                      value={claimForm.notes}
+                      onChange={(e) => setClaimForm(prev => ({ ...prev, notes: e.target.value }))}
+                    ></textarea>
+                  </div>
+
+                  <div className="mb-3">
+                    <label htmlFor="images" className="form-label">Upload Images (Optional)</label>
+                    <input 
+                      type="file"
+                      id="images"
+                      className="form-control"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageChange}
+                    />
+                    <div className="form-text">You can upload multiple images. Supported formats: JPG, PNG, GIF, WebP</div>
+                  </div>
+
+                  {selectedImages.length > 0 && (
+                    <div className="mb-3">
+                      <label className="form-label">Selected Images ({selectedImages.length})</label>
+                      <div className="row">
+                        {selectedImages.map((image, index) => (
+                          <div key={index} className="col-md-3 mb-2">
+                            <div className="position-relative">
+                              <img 
+                                src={URL.createObjectURL(image)} 
+                                alt={`Selected ${index + 1}`}
+                                className="img-thumbnail"
+                                style={{ height: '100px', objectFit: 'cover' }}
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger position-absolute top-0 end-0"
+                                onClick={() => removeImage(index)}
+                                style={{ margin: '2px' }}
+                              >
+                                <i className="bi bi-x"></i>
+                              </button>
+                            </div>
+                            <small className="d-block text-muted">{image.name}</small>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {claimMessage && (
+                    <div className={`alert ${claimMessage.includes('successfully') ? 'alert-success' : 'alert-info'}`}>
+                      {claimMessage}
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => setShowClaimModal(false)}
+                    disabled={isSubmittingClaim}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    disabled={isSubmittingClaim}
+                  >
+                    {isSubmittingClaim ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-send me-2"></i>
+                        Submit Claim
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Backdrop */}
+      {showClaimModal && (
+        <div className="modal-backdrop fade show"></div>
+      )}
     </div>
   );
 } 
