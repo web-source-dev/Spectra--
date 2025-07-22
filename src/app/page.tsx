@@ -98,7 +98,7 @@ export default function Home() {
 
   // Initialize socket connection
   useEffect(() => {
-    socketRef.current = io('http://localhost:8000');
+    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 
     socketRef.current.on('updatePrices', (prices: MetalPrices) => {
       // Only update prices if they are valid (not 0)
